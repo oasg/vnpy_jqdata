@@ -1,4 +1,4 @@
-# vn.py框架的TuShare数据服务接口
+# vn.py框架的聚宽JQData数据服务接口
 
 <p align="center">
   <img src ="https://vnpy.oss-cn-shanghai.aliyuncs.com/vnpy-logo.png"/>
@@ -25,11 +25,7 @@
   * SSE：上海证券交易所
   * SZSE：深圳证券交易所
 
-注意：需要使用相应的数据服务权限，可以通过[该页面](https://www.tushare.pro)注册使用。
-
-## 数据使用事项
-
-tushare数据源期货数据中，第一条夜盘k线数据是集合竞价数据，用户可以根据自己需求进行过滤或者合并。
+注意：需要使用相应的数据服务权限，可以通过[该页面](https://www.joinquant.com/)注册使用。
 
 ## 安装
 
@@ -38,7 +34,7 @@ tushare数据源期货数据中，第一条夜盘k线数据是集合竞价数据
 直接使用pip命令：
 
 ```
-pip install vnpy_tushare
+pip install vnpy_jqdata
 ```
 
 
@@ -50,10 +46,10 @@ python setup.py install
 
 ## 使用
 
-在vn.py中使用TuShare时，需要在全局配置中填写以下字段信息：
+在vn.py中使用JQData时，需要在全局配置中填写以下字段信息：
 
 |名称|含义|必填|举例|
 |---------|----|---|---|
 |datafeed.name|名称|是|tushare|
-|datafeed.username|用户名|否|token|
-|datafeed.password|密码|是|c3a110417f08f26d2c221edc0c50d4a8a5001502eea89cf5|
+|datafeed.username|用户名|是|手机号|
+|datafeed.password|密码|是|注册密码|
