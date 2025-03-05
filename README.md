@@ -28,20 +28,8 @@
 注意：需要使用相应的数据服务权限，可以通过[该页面](https://www.joinquant.com/)注册使用。
 
 ## 安装
-
-安装需要基于2.6.0版本以上的[VN Studio](https://www.vnpy.com)。
-
-直接使用pip命令：
-
 ```
-pip install vnpy_jqdata
-```
-
-
-或者下载解压后在cmd中运行：
-
-```
-python setup.py install
+pip install .
 ```
 
 ## 使用
