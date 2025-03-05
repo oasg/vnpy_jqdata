@@ -1,75 +1,120 @@
-from datetime import timedelta
-from typing import List, Optional
-from pytz import timezone
-import traceback
+import jqdatasdk as jq
+from datetime import timedelta, datetime
+import datetime
+from typing import List
 
-import pandas as pd
-import jqdatasdk
-
+from vnpy.trader.constant import Exchange, Interval
+# from vnpy.trader.mddata.dataapi import MdDataApi
 from vnpy.trader.datafeed import BaseDatafeed
-from vnpy.trader.setting import SETTINGS
-from vnpy.trader.constant import Interval
 from vnpy.trader.object import BarData, HistoryRequest
+from vnpy.trader.setting import SETTINGS
+from typing import Callable
+
+from pytz import timezone
 
 
-INTERVAL_VT2RQ = {
-    Interval.MINUTE: "1m",
-    Interval.HOUR: "60m",
-    Interval.DAILY: "1d",
-}
 
 CHINA_TZ = timezone("Asia/Shanghai")
 
+INTERVAL_VT2JQ = {
+    Interval.MINUTE: '1m',
+    Interval.HOUR: '60m',
+    Interval.DAILY: '1d',
+}
+
+INTERVAL_ADJUSTMENT_MAP_JQ = {
+    Interval.MINUTE: timedelta(minutes=1),
+    Interval.HOUR: timedelta(hours=1),
+    Interval.DAILY: timedelta()  # no need to adjust for daily bar
+}
+
+
 
 class JqdataDatafeed(BaseDatafeed):
-    """聚宽JQDatasdk数据服务接口"""
+    """聚宽JQData客户端封装类"""
 
     def __init__(self):
-        """"""
-        self.username: str = SETTINGS["datafeed.username"]
-        self.password: str = SETTINGS["datafeed.password"]
 
-    def query_bar_history(self, req: HistoryRequest) -> Optional[List[BarData]]:
-        """查询k线数据"""
-        # 初始化API
+        """"""
+        self.username = SETTINGS["datafeed.username"]
+        self.password = SETTINGS["datafeed.password"]
+
+        self.inited = False
+        print("here")
+
+    def init(self, username="", password=""):
+        """"""
+        if self.inited:
+            return True
+
+        if username and password:
+            self.username = username
+            self.password = password
+
+        if not self.username or not self.password:
+            return False
+
         try:
-            jqdatasdk.auth(self.username, self.password)
-        except Exception:
-            traceback.print_exc()
+            jq.auth(self.username, self.password)
+        except Exception as ex:
+            print("jq auth fail:" + repr(ex))
+            return False
+
+        self.inited = True
+        return True
+
+    def query_bar_history(self, req: HistoryRequest,output: Callable):
+        """
+        Query history bar data from JQData.
+        """
+        # 检查是否登录
+        if not self.inited:
+            self.init()    
+        symbol = req.symbol
+        exchange = req.exchange
+        interval = req.interval
+        start = req.start
+        end = req.end
+
+        jq_symbol = jq.normalize_code(symbol)
+
+        jq_interval = INTERVAL_VT2JQ.get(interval)
+        if not jq_interval:
             return None
 
-        # 查询数据
-        tq_symbol = jqdatasdk.normalize_code(req.symbol)
+        # For adjust timestamp from bar close point (RQData) to open point (VN Trader)
+        # adjustment = INTERVAL_ADJUSTMENT_MAP_JQ.get(interval)
+        adjustment = INTERVAL_ADJUSTMENT_MAP_JQ[interval]
+        # For querying night trading period data
+        end += timedelta(1)
+        try:
+            df = jq.get_price(
+                jq_symbol,
+                frequency=jq_interval,
+                fields=["open", "high", "low", "close", "volume"],
+                start_date=start,
+                end_date=end,
+                skip_paused=True,
+            )
+        except Exception as ex:
+            output("jq get_price fail:" + repr(ex))
 
-        df = jqdatasdk.get_price(
-            security=tq_symbol,
-            frequency=INTERVAL_VT2RQ.get(req.interval),
-            start_date=req.start,
-            end_date=(req.end + timedelta(1))
-        )
-
-        jqdatasdk.logout()
-        # 解析数据
-        bars: List[BarData] = []
+        data: List[BarData] = []
 
         if df is not None:
-            for tp in df.itertuples():
-                # 天勤时间为与1970年北京时间相差的秒数，需要加上8小时差
-                dt = pd.Timestamp(tp.Index).to_pydatetime()
-
+            for ix, row in df.iterrows():
                 bar = BarData(
-                    symbol=req.symbol,
-                    exchange=req.exchange,
-                    interval=req.interval,
-                    datetime=CHINA_TZ.localize(dt),
-                    open_price=tp.open,
-                    high_price=tp.high,
-                    low_price=tp.low,
-                    close_price=tp.close,
-                    volume=tp.volume,
-                    open_interest=tp.open_interest,
-                    gateway_name="JQ",
+                    symbol=symbol,
+                    exchange=exchange,
+                    interval=interval,
+                    datetime=row.name.to_pydatetime() - adjustment,
+                    open_price=row["open"],
+                    high_price=row["high"],
+                    low_price=row["low"],
+                    close_price=row["close"],
+                    volume=row["volume"],
+                    gateway_name="JQ"
                 )
-                bars.append(bar)
+                data.append(bar)
 
-        return bars
+        return data
